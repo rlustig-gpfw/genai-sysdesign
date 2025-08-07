@@ -182,18 +182,3 @@ class QueryUnderstandingChat(ChatInterface):
         query_type = self._classify_query_type(message)
         response = self._generate_response(message, query_type)
         return response
-
-        # output_parser = StrOutputParser()
-        
-        # # Classify the query type
-        # query_classifier_chain = self.query_classifier_prompt | self.llm | output_parser
-        # query_type = query_classifier_chain.invoke(message).lower()
-
-        # # Generate a response based on the query type
-        # response_prompt = self.response_prompts[query_type]
-
-        # # Format the response
-        # response_chain = response_prompt | self.llm | output_parser
-        # response = response_chain.invoke(message)
-
-        # return response
