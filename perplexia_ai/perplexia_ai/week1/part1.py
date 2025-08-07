@@ -151,9 +151,16 @@ class QueryUnderstandingChat(ChatInterface):
 
         output_parser = StrOutputParser()
         query_classifier_chain = self.query_classifier_prompt | self.llm | output_parser
-        query_type = query_classifier_chain.invoke(message).lower()
-        print(f"Query type: {query_type}")
-        return QueryType(query_type)
+        query_type_str = query_classifier_chain.invoke(message).lower()
+        print(f"Query type: {query_type_str}")
+        
+        try:
+            return QueryType(query_type_str)
+        except ValueError:
+            # If the classifier returns an invalid query type, default to FACTUAL
+            # This is a reasonable fallback as factual queries are the most common
+            print(f"Unknown query type '{query_type_str}', defaulting to FACTUAL")
+            return QueryType.FACTUAL
 
     def _generate_response(self, message: str, query_type: QueryType) -> str:
         """Generates a response based on the query type."""
