@@ -1,9 +1,13 @@
 import re
 from typing import Union
 
+from langchain_core.tools import tool
+
+
 class Calculator:
     """A simple calculator tool for evaluating basic arithmetic expressions."""
     
+    @tool
     @staticmethod
     def evaluate_expression(expression: str) -> Union[float, str]:
         """Evaluate a basic arithmetic expression.
@@ -32,9 +36,12 @@ class Calculator:
             # Clean up the expression
             expression = expression.strip()
             
-            # Only allow safe characters (digits, basic operators, parentheses, spaces)
-            if not re.match(r'^[\d\s\+\-\*\/\(\)\.]*$', expression):
+            # Only allow safe characters (digits, basic operators, parentheses, spaces, exponentials)
+            if not re.match(r'^[\d\s\+\-\*\/\(\)\.\*\*\^]*$', expression):
                 return "Error: Invalid characters in expression"
+            
+            # Convert caret (^) to Python's exponentiation operator (**)
+            expression = expression.replace('^', '**')
             
             # Evaluate the expression
             result = eval(expression, {"__builtins__": {}})
