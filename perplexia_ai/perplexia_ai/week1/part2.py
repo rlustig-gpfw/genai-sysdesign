@@ -159,6 +159,20 @@ class BasicToolsChat(ChatInterface):
             ("system", 
                 """
                 Return the mathematical expression of the question only, nothing else.
+                
+                - Do not include any other text or comments. 
+                - No Latex responses.
+                - No markdown responses.
+                - If rounding is asked for, determine where the decimal should be rounded to based on the question.
+                Examples:
+                Question: Round 10.3 to the nearest integer.
+                Answer: 10.3 // 1
+
+                Question: What is the a 15% tip of a $70 dollar dinner, rounder to the nearest ten cents.
+                Answer:  (((0.15*70)/0.10 + 0.5)//1)*0.10
+
+                Question: Round 2.11 to one decimal place.
+                Answer: (2.11*10 // 1)/10
                 """),
             ("user", "{message}"),
         ])
