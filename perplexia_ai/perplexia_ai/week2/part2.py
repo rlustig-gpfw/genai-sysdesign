@@ -7,9 +7,27 @@ This implementation focuses on:
 - Formatting responses with citations from OPM documents
 """
 
-from typing import Dict, List, Optional
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, TypedDict
+
+from langchain.chat_models import init_chat_model
+from langchain.prompts import PromptTemplate
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.vectorstores import InMemoryVectorStore
+from langchain_core.documents import Document
+from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import OpenAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langgraph.graph import END, START, StateGraph
 
 from perplexia_ai.core.chat_interface import ChatInterface
+
+
+class DocumentRAGState(TypedDict):
+    query: str
+    documents: List[Document]
+    response: str
 
 
 # NOTE: The TODOs are only a direction for you to start with.
@@ -19,7 +37,7 @@ class DocumentRAGChat(ChatInterface):
     
     def __init__(self):
         self.llm = None
-        self.embeddings = None
+        self.embeddings_model = None
         self.vector_store = None
         self.document_paths = []
         self.graph = None
@@ -34,45 +52,72 @@ class DocumentRAGChat(ChatInterface):
         - Build retrieval system
         - Create LangGraph for RAG workflow
         """
-        # TODO: Initialize LLM
+        # Initialize LLM
+        self.llm = init_chat_model(
+            model="gpt-4o-mini",
+            temperature=0,
+        )
         
         # TODO: Initialize embeddings
-        
-        # TODO: Set paths to OPM documents
-        # data_dir = Path("path/to/opm/documents")
-        # self.document_paths = list(data_dir.glob("*.pdf"))
-        
-        # TODO: Process documents and create vector store
-        # docs = self._load_and_process_documents()
-        # self.vector_store = InMemoryVectorStore.from_documents(docs, self.embeddings)
-        
-        # TODO: Create the graph
-        # Define nodes:
-        # 1. Retrieval node: Finds relevant document sections
-        # 2. Generation node: Creates response using retrieved context
-        
+        self.embeddings_model = OpenAIEmbeddings()
+
+        # Set paths to OPM documents
+        data_dir = Path(os.getcwd()) / "perplexia_ai" / "docs"
+        self.document_paths = list(data_dir.glob("*.pdf"))
+
+        # Process documents and create vector store
+        docs = self._load_and_process_documents()
+        self.vector_store = InMemoryVectorStore.from_documents(docs, self.embeddings_model)
+                
         # Define the edges and the graph structure
-        
-        # Compile the graph
-        pass
+        graph_builder = StateGraph(DocumentRAGState)
+        graph_builder.add_node("retrieval", self._create_retrieval_node)
+        graph_builder.add_node("generation", self._create_generation_node)
+
+        graph_builder.add_edge(START, "retrieval")
+        graph_builder.add_edge("retrieval", "generation")
+        graph_builder.add_edge("generation", END)
+        self.graph = graph_builder.compile()
     
-    def _load_and_process_documents(self) -> list[str]:
+    def _load_and_process_documents(self) -> list[Document]:
         """Load and process OPM documents."""
-        # TODO: Implement document loading and processing
         # 1. Load the documents
         # 2. Split into chunks
         # 3. Return processed documents
-        return []
+        all_pages = []
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        for path in self.document_paths:
+            all_pages.extend(PyPDFLoader(path).load())
+        return text_splitter.split_documents(all_pages)
     
-    def _create_retrieval_node(self):
+    def _create_retrieval_node(self, state: DocumentRAGState):
         """Create a node that retrieves relevant document sections."""
-        # TODO: Implement retrieval node
-        pass
+        retriever = self.vector_store.as_retriever()
+        relevant_docs = retriever.invoke(state["query"])
+        return {"documents": relevant_docs}
     
-    def _create_generation_node(self):
+    def _create_generation_node(self, state: DocumentRAGState):
         """Create a node that generates responses using retrieved context."""
-        # TODO: Implement generation node
-        pass
+        prompt = PromptTemplate.from_template(
+            """
+            You are a helpful assistant that generates responses based on the user's query and the list of retrieved document sections.
+            Here is the user's query:
+            {query}
+            Here is the list of retrieved document sections:
+            {documents}
+            
+            If the query is not answerable from the retrieved document sections, explain why and briefly mention a summary of what relevant information you can provide.
+            No sources should be provided if the query is not answerable from the retrieved document sections.
+            
+            Format the response with the answer and the sources:
+            Answer: <Answer>
+            Sources:
+            - <Filename of the source document, not the title>
+            """
+        )
+        chain = prompt | self.llm | StrOutputParser()
+        response = chain.invoke({"query": state["query"], "documents": state["documents"]})
+        return {"response": response}
     
     def process_message(self, message: str, chat_history: Optional[List[Dict[str, str]]] = None) -> str:
         """Process a message using document RAG.
@@ -86,10 +131,6 @@ class DocumentRAGChat(ChatInterface):
         Returns:
             str: The assistant's response based on document knowledge
         """
-        # TODO: Implement document RAG processing
-        # 1. Format the input message
-        # 2. Run the graph
-        # 3. Extract the response
-        
-        # This is just a placeholder
-        return f"Document RAG result for: {message}" 
+        result = self.graph.invoke({"query": message})
+        print(result)
+        return result["response"]
