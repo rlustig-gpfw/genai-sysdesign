@@ -119,6 +119,18 @@ class DocumentRAGChat(ChatInterface):
             Answer: [Answer here within 2-3 sentences only]
             Sources:
             - <Filename of the source document, not the title>
+
+            Example response 1:
+            User: What is the average salary of a software engineer in the United States?
+            Documents: [Text from a document about the average salary of a software engineer in the United States]
+            Answer: The average salary of a software engineer in the United States is $100,000.
+            Sources:
+            - [Name of the source document]
+
+            Example response 2:
+            User: Why is the sky blue?
+            Documents: [Text from documents about the sky, but nothing describing what makes the sky blue]
+            Answer: I don't know. This question is not answerable from the retrieved documents.
             """
         )
         chain = prompt | self.llm.with_structured_output(ResponseGenerationStructure)
