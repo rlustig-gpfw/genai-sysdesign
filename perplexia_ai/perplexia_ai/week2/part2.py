@@ -98,7 +98,7 @@ class DocumentRAGChat(ChatInterface):
     
     def _create_retrieval_node(self, state: DocumentRAGState):
         """Create a node that retrieves relevant document sections."""
-        retriever = self.vector_store.as_retriever(k=6)
+        retriever = self.vector_store.as_retriever(search_kwargs={"k": 6})
         relevant_docs = retriever.invoke(state["query"])
         return {"documents": relevant_docs}
     
