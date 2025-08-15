@@ -16,6 +16,7 @@ from langchain.prompts import PromptTemplate
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import InMemoryVectorStore
 from langchain_core.documents import Document
+from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -28,6 +29,11 @@ class DocumentRAGState(TypedDict):
     query: str
     documents: List[Document]
     response: str
+
+
+class ResponseGenerationStructure(BaseModel):
+    answer: str = Field(description="The answer to the user's query")
+    sources: List[str] = Field(description="Names of the source documents that were used to answer the user's query")
 
 
 # NOTE: The TODOs are only a direction for you to start with.
@@ -92,7 +98,7 @@ class DocumentRAGChat(ChatInterface):
     
     def _create_retrieval_node(self, state: DocumentRAGState):
         """Create a node that retrieves relevant document sections."""
-        retriever = self.vector_store.as_retriever()
+        retriever = self.vector_store.as_retriever(k=6)
         relevant_docs = retriever.invoke(state["query"])
         return {"documents": relevant_docs}
     
@@ -110,14 +116,21 @@ class DocumentRAGChat(ChatInterface):
             No sources should be provided if the query is not answerable from the retrieved document sections.
             
             Format the response with the answer and the sources:
-            Answer: <Answer>
+            Answer: [Answer here within 2-3 sentences only]
             Sources:
             - <Filename of the source document, not the title>
             """
         )
-        chain = prompt | self.llm | StrOutputParser()
+        chain = prompt | self.llm.with_structured_output(ResponseGenerationStructure)
         response = chain.invoke({"query": state["query"], "documents": state["documents"]})
-        return {"response": response}
+
+        response_str = f"{response.answer}"
+        if response.sources:
+            response_str += f"\n\nSources:\n"
+            for source in response.sources:
+                response_str += f"- {source}\n"
+
+        return {"response": response_str}
     
     def process_message(self, message: str, chat_history: Optional[List[Dict[str, str]]] = None) -> str:
         """Process a message using document RAG.
