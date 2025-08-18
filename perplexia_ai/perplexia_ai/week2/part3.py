@@ -33,9 +33,11 @@ class CorrectiveRAGState(TypedDict):
     web_search_results: List[Dict[str, str]]
     response: str
 
-# class ResponseGenerationStructure(BaseModel):
-#     answer: str = Field(description="The answer to the user's query")
-#     sources: List[str] = Field(description="Names of the source documents that were used to answer the user's query")
+
+class ResponseGenerationStructure(BaseModel):
+    answer: str = Field(description="The answer to the user's query")
+    sources: List[str] = Field(description="Names of the source documents that were used to answer the user's query")
+
 
 class RelevanceAssessmentStructure(BaseModel):
     scores: List[int] = Field(description="Relevance scores of each of the retrieved documents to the user's query")
@@ -179,9 +181,16 @@ class CorrectiveRAGChat(ChatInterface):
             - [Name of the source document]
             """
         )
-        chain = prompt | self.llm | StrOutputParser()
+        chain = prompt | self.llm.with_structured_output(ResponseGenerationStructure)
         response = chain.invoke({"query": state["query"], "documents": state["documents"]})
-        return {"response": response}
+
+        response_str = f"{response.answer}"
+        if response.sources:
+            response_str += f"\n\nSources:\n"
+            for source in response.sources:
+                response_str += f"- {source}\n"
+
+        return {"response": response_str}
 
     def _create_web_search_response_node(self, state: CorrectiveRAGState):
         """Create a node that generates a response."""
