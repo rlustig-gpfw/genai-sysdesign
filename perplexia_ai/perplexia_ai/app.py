@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 from perplexia_ai.week1.factory import Week1Mode, create_chat_implementation as create_week1_chat
 from perplexia_ai.week2.factory import Week2Mode, create_chat_implementation as create_week2_chat
+from perplexia_ai.week3.factory import Week3Mode, create_chat_implementation as create_week3_chat
 
 # Load environment variables
 load_dotenv()
@@ -13,7 +14,7 @@ def create_demo(week: int = 1, mode_str: str = "part1"):
     """Create and return a Gradio demo with the specified week and mode.
     
     Args:
-        week: Which week implementation to use (1 or 2)
+        week: Which week implementation to use (1, 2, or 3)
         mode_str: String representation of the mode ('part1', 'part2', or 'part3')
         
     Returns:
@@ -77,8 +78,37 @@ def create_demo(week: int = 1, mode_str: str = "part1"):
             "part2": "Your intelligent AI assistant that can retrieve information from OPM documents.",
             "part3": "Your intelligent AI assistant that combines web search and document retrieval."
         }
+    elif week == 3:
+        # Week 3 implementation
+        # Convert string to enum
+        mode_map = {
+            "part1": Week3Mode.PART1_TOOL_USING_AGENT,
+            "part2": Week3Mode.PART2_AGENTIC_RAG,
+            "part3": Week3Mode.PART3_DEEP_RESEARCH
+        }
+        
+        if mode_str not in mode_map:
+            raise ValueError(f"Unknown mode: {mode_str}. Choose from: {list(mode_map.keys())}")
+        
+        mode = mode_map[mode_str]
+        
+        # Initialize the chat implementation
+        chat_interface = create_week3_chat(mode)
+        
+        # Create the Gradio interface with appropriate title based on mode
+        titles = {
+            "part1": "Perplexia AI - Week 3: Tool-Using Agent",
+            "part2": "Perplexia AI - Week 3: Agentic RAG",
+            "part3": "Perplexia AI - Week 3: Deep Research"
+        }
+        
+        descriptions = {
+            "part1": "Your intelligent AI assistant that autonomously decides which tools to use.",
+            "part2": "Your intelligent AI assistant that dynamically controls its search strategy.",
+            "part3": "Your multi-agent research system that creates comprehensive research reports."
+        }
     else:
-        raise ValueError(f"Unknown week: {week}. Choose from: [1, 2]")
+        raise ValueError(f"Unknown week: {week}. Choose from: [1, 2, 3]")
     
     # Initialize the chat implementation
     chat_interface.initialize()
@@ -96,7 +126,7 @@ def create_demo(week: int = 1, mode_str: str = "part1"):
         """
         # Get response from our chat implementation
         return chat_interface.process_message(message, history)
-    
+
     # Create the Gradio interface
     examples = [
         ["What is machine learning?"],
@@ -118,6 +148,27 @@ def create_demo(week: int = 1, mode_str: str = "part1"):
             ["How did OPM's approach to improving the federal hiring process evolve from FY 2019 through FY 2022?"],
             ["What were the performance metrics for OPM in 2020? Compare them with 2019."],
             ["What strategic goals did OPM outline in the 2022 report?"]
+        ]
+    elif week == 3 and mode_str == "part1":
+        examples = [
+            ["Calculate 156 * 42"],
+            ["What's the current date?"],
+            ["What's the weather like in San Francisco?"],
+            ["If I have $85.60 and leave a 18% tip, how much will I pay in total?"]
+        ]
+    elif week == 3 and mode_str == "part2":
+        examples = [
+            ["What strategic goals did OPM outline in the 2022 report?"],
+            ["How did OPM's performance metrics evolve from 2018 to 2022?"],
+            ["What major challenges did OPM face in implementing its strategic plans?"],
+            ["Compare OPM's approach to workforce development across different fiscal years"]
+        ]
+    elif week == 3 and mode_str == "part3":
+        examples = [
+            ["Research the current state and future prospects of quantum computing"],
+            ["Create a comprehensive report on climate change adaptation strategies"],
+            ["Analyze the impact of artificial intelligence on healthcare delivery"],
+            ["Frameworks for building LLM agents: an enterprise guide"]
         ]
     
     # Create the Gradio interface
