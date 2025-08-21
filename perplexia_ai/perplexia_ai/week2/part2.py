@@ -64,7 +64,7 @@ class DocumentRAGChat(ChatInterface):
             temperature=0,
         )
         
-        # TODO: Initialize embeddings
+        # Initialize embeddings
         self.embeddings_model = OpenAIEmbeddings()
 
         # Set paths to OPM documents
