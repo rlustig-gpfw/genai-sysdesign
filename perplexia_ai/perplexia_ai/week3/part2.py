@@ -8,10 +8,13 @@ This implementation focuses on:
 
 import os
 from typing import Dict, List, Optional, Any, Tuple
-from langchain_core.output_parsers import StrOutputParser
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
+from pathlib import Path
+
+from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_community.document_loaders import PyPDFLoader
 
 from langgraph.prebuilt import create_react_agent
 from langgraph.graph import StateGraph
@@ -24,9 +27,32 @@ from langchain_core.tools.retriever import create_retriever_tool
 from langchain_core.vectorstores.base import VectorStoreRetriever
 
 from perplexia_ai.core.chat_interface import ChatInterface
+from langchain.chat_models import init_chat_model
+from langchain_community.vectorstores import InMemoryVectorStore
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.prompts import PromptTemplate
+from pydantic import BaseModel, Field
 
 
-# NOTE: The TODOs here are ONLY a guideline, feel free to change the structure as you see fit.
+DOC_EVALUATION_PROMPT = PromptTemplate(
+    """
+    You are an expert at evaluating the relevance of a retrieved document to a user query.
+    Here is the user query:
+    {query}
+    Here is the retrieved document:
+    {relevant_docs}
+
+    If the document contains keyword(s) or semantic meaning related to the user question, grade it as relevant.
+    Return a binary score 'yes' or 'no' to indicate if the document is relevant to the user query.
+    """
+)
+
+
+class DocumentEvaluationStructure(BaseModel):
+    """Structure for the document evaluation."""
+    is_relevant: str = Field(description="Whether the document is relevant to the user query")
+
+
 class AgenticRAGChat(ChatInterface):
     """Week 3 Part 2 implementation focusing on Agentic RAG."""
     
@@ -51,13 +77,24 @@ class AgenticRAGChat(ChatInterface):
         - Create tools for the agent
         - Set up the agentic RAG workflow
         """
-        # TODO: Initialize models (LLM, embeddings)
+        # Initialize LLM
+        self.llm = init_chat_model(
+            model="gpt-4o",
+            temperature=0,
+        )
         
-        # TODO: Load documents (reuse from Week 2)
+        # Initialize embeddings
+        self.embeddings = OpenAIEmbeddings()
+
+        # Set paths to OPM documents
+        data_dir = Path(os.getcwd()) / "perplexia_ai" / "docs"
+        self.document_paths = list(data_dir.glob("*.pdf"))
+
+        # Process documents and create vector store
+        docs = self._load_and_process_documents()
+        self.vector_store, self.retriever = self._setup_vector_store(docs)
         
-        # TODO: Create vector store and retriever
-        
-        # TODO: Create tools (retriever tool, tavily search tool)
+        self.tools = self._create_tools()
         
         # TODO: Create document evaluator
         
@@ -65,22 +102,26 @@ class AgenticRAGChat(ChatInterface):
         
         # TODO: Create the agent and workflow
     
-    def _load_documents(self) -> List[Document]:
-        """Load the OPM documents from Week 2.
-        
-        Returns:
-            List[Document]: List of loaded documents
-        """
-        # TODO: Implement document loading (reuse code from Week 2)
+    def _load_and_process_documents(self) -> list[Document]:
+        """Load and process OPM documents."""
+        # 1. Load the documents
+        # 2. Split into chunks
+        # 3. Return processed documents
+        all_pages = []
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        for path in self.document_paths:
+            all_pages.extend(PyPDFLoader(path).load())
+        return text_splitter.split_documents(all_pages)
     
-    def _setup_vector_store(self) -> Tuple[VectorStore, VectorStoreRetriever]:
+    def _setup_vector_store(self, docs: List[Document]) -> Tuple[VectorStore, VectorStoreRetriever]:
         """Set up the vector store and retriever.
         
         Returns:
             Tuple[VectorStore, VectorStoreRetriever]: The vector store and retriever
         """
-        # TODO: Create vector store with OPM documents
-        # TODO: Create retriever with appropriate parameters
+        vector_store = InMemoryVectorStore.from_documents(documents=docs, embedding=self.embeddings)
+        retriever = vector_store.as_retriever()
+        return vector_store, retriever
     
     def _create_tools(self) -> List[Any]:
         """Create and return the tools for the agent.
@@ -88,8 +129,20 @@ class AgenticRAGChat(ChatInterface):
         Returns:
             List[Any]: List of tool objects
         """
-        # TODO: Create retriever tool
-        # TODO: Create Tavily search tool
+        retriever_tool = create_retriever_tool(
+            self.retriever,
+             "OPM_Retriever",
+             "Search and retrieve information from OPM documents",
+        )
+
+        search_tool = TavilySearchResults(
+            max_results=3,
+            include_answer=True,
+            include_raw_content=False,
+            include_images=False,
+            search_depth="advanced",
+        )
+        return [retriever_tool, search_tool]
     
     def _create_document_evaluator(self) -> Any:
         """Create a document evaluator that assesses retrieved document quality.
@@ -97,8 +150,9 @@ class AgenticRAGChat(ChatInterface):
         Returns:
             Any: The document evaluator runnable
         """
-        # TODO: Create an evaluator prompt
-        # TODO: Create the evaluator chain
+        chain = DOC_EVALUATION_PROMPT | self.llm.with_structured_output(DocumentEvaluationStructure)
+        # TODO: determine if this evaluates one document or multiple documents at a time
+        return chain
     
     def _create_synthesizer(self) -> Any:
         """Create a synthesizer that combines retrieved information.
