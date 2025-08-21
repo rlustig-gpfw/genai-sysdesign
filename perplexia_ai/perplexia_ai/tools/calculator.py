@@ -9,7 +9,7 @@ class Calculator:
     
     @tool
     @staticmethod
-    def evaluate_expression(expression: str) -> Union[float, str]:
+    def evaluate_expression(expression: str) -> Union[float, int, str]:
         """Evaluate a basic arithmetic expression.
         
         Supports only basic arithmetic operations (+, -, *, /) and parentheses.
@@ -21,16 +21,18 @@ class Calculator:
                        e.g. "5 + 3" or "10 * (2 + 3)"
             
         Returns:
-            Union[float, str]: The result of the evaluation, or an error message
-                              if the expression is invalid
+            Union[float, int, str]: The result of the evaluation (as an int if
+                                    the numeric result is an integer, otherwise
+                                    a float), or an error message if the
+                                    expression is invalid
         
         Examples:
             >>> Calculator.evaluate_expression("5 + 3")
-            8.0
+            8
             >>> Calculator.evaluate_expression("10 * (2 + 3)")
-            50.0
+            50
             >>> Calculator.evaluate_expression("15 / 3")
-            5.0
+            5
         """
         try:
             # Clean up the expression
@@ -46,8 +48,9 @@ class Calculator:
             # Evaluate the expression
             result = eval(expression, {"__builtins__": {}})
             
-            # Convert to float and handle division by zero
-            return float(result)
+            # Normalize numeric type: return int if the result is an integer value
+            numeric_result = float(result)
+            return int(numeric_result) if numeric_result.is_integer() else numeric_result
             
         except ZeroDivisionError:
             return "Error: Division by zero"
