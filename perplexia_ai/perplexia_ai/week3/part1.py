@@ -6,10 +6,16 @@ This implementation focuses on:
 - Comparing manual workflow vs agent approaches
 """
 
-from typing import Dict, List, Optional, Any
-from langgraph.graph import StateGraph, START, END
+from typing import Any, Dict, List, Optional
+
+from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import create_react_agent
+from opik.integrations.langchain import OpikTracer
 
 from perplexia_ai.core.chat_interface import ChatInterface
+from perplexia_ai.tools.calculator import Calculator
+from perplexia_ai.tools.datetime import DateTimeTool
+from perplexia_ai.tools.weather import WeatherTool
 
 
 class ToolUsingAgentChat(ChatInterface):
@@ -28,15 +34,14 @@ class ToolUsingAgentChat(ChatInterface):
         - Define tools for calculator, DateTime, and weather
         - Create the ReAct agent using LangGraph
         """
-        # TODO: Initialize your chat model
+        self.llm = ChatOpenAI(model="gpt-4o")
         
-        # TODO: Create tools using the tool decorator
         self.tools = self._create_tools()
         
-        # TODO: Create the ReAct agent
-        
-        # TODO: Create and compile the graph
-    
+        self._create_agent()
+
+        self.tracer = OpikTracer(graph=self.agent_executor.get_graph(xray=True))
+
     def _create_tools(self) -> List[Any]:
         """Create and return the list of tools for the agent.
         
@@ -47,25 +52,36 @@ class ToolUsingAgentChat(ChatInterface):
         
         Returns:
             List: List of tool objects
-        """
-        # TODO: Implement calculator tool
+        """       
+        # Single natural-language DateTime tool + calculator + weather
+        tools = [
+            Calculator.evaluate_expression,
+            DateTimeTool.evaluate,
+            WeatherTool.get_weather,
+        ]
+        return tools
         
-        # TODO: Implement DateTime tool
-        
-        # TODO: Implement Weather tool using Tavily
-    
     def _create_agent(self) -> Any:
         """Create and return the ReAct agent executor.
         
         Returns:
             Any: The agent executor graph or callable
         """
-        # TODO: Create a ReAct agent with access to tools
-        
-        # TODO: Set up a StateGraph with the agent
-        
-        # TODO: Define entry point and compile
-    
+        style_instructions = (
+            """You are a helpful assistant. Prefer the use of tools to answer questions, if applicable.
+            Style requirements:
+            - Do not use LaTeX or TeX markup in responses.
+            - Use plain, readable mathematical symbols and text, only when needed.
+            - For example, if we need to show a calculation we can use the symbols +, -, *, /, ^, =, <, >.
+            """
+        )
+
+        self.agent_executor = create_react_agent(
+            model=self.llm,
+            tools=self.tools,
+            prompt=style_instructions,
+        )
+
     def process_message(self, message: str, chat_history: Optional[List[Dict[str, str]]] = None) -> str:
         """Process a message using the tool-using agent.
         
@@ -80,7 +96,13 @@ class ToolUsingAgentChat(ChatInterface):
         Returns:
             str: The assistant's response
         """
-        # TODO: Prepare input for the agent
-        
-        # TODO: Run the agent and return the result
-        return "Hello world from part 1"
+        result = self.agent_executor.invoke({"messages": [message]}, config={"callbacks": [self.tracer]})
+
+        # Extract final response from the result
+        last_message = result["messages"][-1]
+        if hasattr(last_message, "content"):
+            response = last_message.content
+        else:
+            response = last_message
+
+        return response
