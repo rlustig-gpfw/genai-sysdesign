@@ -27,6 +27,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import MessagesState
 from langgraph.prebuilt import create_react_agent
+from opik.integrations.langchain import OpikTracer
 from pydantic import BaseModel, Field
 
 from perplexia_ai.core.chat_interface import ChatInterface
@@ -104,6 +105,8 @@ class AgenticRAGChat(ChatInterface):
         self.document_evaluator = self._create_document_evaluator()
         self.synthesizer = self._create_synthesizer()
         self.workflow = self._create_workflow()
+
+        self.tracer = OpikTracer(graph=self.agent.get_graph(xray=True))
     
     def _load_and_process_documents(self) -> list[Document]:
         """Load and process OPM documents."""
@@ -327,7 +330,7 @@ class AgenticRAGChat(ChatInterface):
             ]
         }
 
-        result = self.agent.invoke(input)
+        result = self.agent.invoke(input, config={"callbacks": [self.tracer]})
         messages = result.get("messages", result)
 
         update = {}
