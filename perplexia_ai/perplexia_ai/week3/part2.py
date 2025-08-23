@@ -8,7 +8,7 @@ This implementation focuses on:
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Literal
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from langchain.chat_models import init_chat_model
 from langchain_community.document_loaders import PyPDFLoader
@@ -174,7 +174,7 @@ class AgenticRAGChat(ChatInterface):
             - Assign a binary score:
             - Return true if the document is relevant to the user's query.
             - Return false if it is not relevant.
-            - If the score is 'no', provide detailed, actionable feedback:
+            - If the score is False, provide detailed, actionable feedback:
             - Clearly interpret the user's query.
             - Analyze its semantic intent.
             - Suggest improvements or clarifications to make the query more specific if needed. IMPORTANT: Direct this feedback to the system (not the user) so the query can be programmatically improved or clarified.
@@ -186,7 +186,7 @@ class AgenticRAGChat(ChatInterface):
             ## Output Format
             The response must contain the following fields:
             - `score` (boolean): true if relevant, false otherwise.
-            - `feedback` (string, optional): Include only if the score is 'no'. Provide specific feedback for the system to help improve the query or clarify why the document is not relevant.
+            - `feedback` (string, optional): Include only if the score is False. Provide specific feedback for the system to help improve the query or clarify why the document is not relevant.
             - `improved_query` (string): A version of the original query improved or clarified based on additional reasoning or semantic intent.
             """
         )
@@ -309,11 +309,13 @@ class AgenticRAGChat(ChatInterface):
         Places the response from the agent into the correct field in AgenticRAGState
         based on which tool is called.
         """
+        update = {}
+        query = state["query"]
+        
         # Use the improved query if it exists, otherwise use the original query
         if state["improved_query"] != "":
             query = state["improved_query"]
-        else:
-            query = state["query"]
+            state["query"] = query
 
         input = {
             "messages": [
@@ -332,8 +334,6 @@ class AgenticRAGChat(ChatInterface):
 
         result = self.agent.invoke(input, config={"callbacks": [self.tracer]})
         messages = result.get("messages", result)
-
-        update = {}
 
         # Find the last human message index
         user_idx = None
@@ -376,7 +376,7 @@ class AgenticRAGChat(ChatInterface):
 
     def _should_synthesize(self, state: AgenticRAGState) -> str:
         """Determine if the agent needs to synthesize."""
-        if state["score"] is True or state["num_iterations"] > 3:
+        if state["score"] is True or state["num_iterations"] >= 3:
             return "synthesizer"
         else:
             return "agent"
