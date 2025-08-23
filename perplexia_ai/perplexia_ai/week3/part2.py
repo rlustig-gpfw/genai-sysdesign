@@ -384,21 +384,6 @@ class AgenticRAGChat(ChatInterface):
         Returns:
             Any: The compiled workflow
         """
-        # TODO: Create the retrieval agent
-        # TODO: Define workflow graph with nodes for agent, evaluator, synthesizer
-        # TODO: Add conditional edges based on evaluation results
-        # TODO: Set entry point and compile graph
-
-        # state = AgenticRAGState(
-        #     query="",
-        #     relevant_docs=[],
-        #     search_results=[],
-        #     score="",
-        #     feedback="",
-        #     num_iterations=0,
-        #     synthesized_response="",
-        #     final_response="",
-        # )
         workflow = StateGraph(AgenticRAGState)
 
         workflow.add_node("agent", self._create_agent_node)
